@@ -92,18 +92,38 @@ func (cn *CnConnection) setListeningOp(op uint32) error {
     return syscall.Sendto(cn.fd, buf.Bytes(), 0, &cn.sa)
 }
 
-func (cn *CnConnection) Receive() ([]syscall.NetlinkMessage, error) {
+type RawMsg struct {
+    Data  []byte
+    Error error
+}
+
+func (cn *CnConnection) RecvRawProcEvents(events chan RawMsg) {
     rb := make([]byte, syscall.Getpagesize())
     fmt.Println("call recvfrom")
 
-    msglen, _, err := syscall.Recvfrom(cn.fd, rb, 0)
-    if err != nil {
-        return nil, err
-    }
+    for {
+        msglen, _, err := syscall.Recvfrom(cn.fd, rb, 0)
+        if err != nil {
+            events <- RawMsg{Data: nil, Error: err}
+            continue
+        }
 
-    if msglen < syscall.NLMSG_HDRLEN {
-        return nil, fmt.Errorf("got short response from netlink")
-    }
+        if msglen < syscall.NLMSG_HDRLEN {
+            events <- RawMsg{
+                Data:  nil,
+                Error: fmt.Errorf("got short response from netlink"),
+            }
+            continue
+        }
 
-    return syscall.ParseNetlinkMessage(rb[:msglen])
+        nlMessages, err := syscall.ParseNetlinkMessage(rb[:msglen])
+        if err != nil {
+            events <- RawMsg{Data: nil, Error: err}
+            continue
+        }
+
+        for _, msg := range nlMessages {
+            events <- RawMsg{Data: msg.Data}
+        }
+    }
 }

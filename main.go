@@ -8,16 +8,14 @@ import (
 )
 
 func main() {
-    var (
-        msgs []syscall.NetlinkMessage
-        err  error
-    )
-
+    var err  error
     signals := []os.Signal{syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT}
     sigchan := make(chan os.Signal, 1)
+    evschan := make(chan RawMsg)
 
     signal.Notify(sigchan, signals...)
 
+    listener := &ProcEventsListener{}
     conn := &CnConnection{}
     err = conn.Connect()
 
@@ -29,6 +27,8 @@ func main() {
     defer func() {
         conn.Close()
     }()
+
+    go conn.RecvRawProcEvents(evschan)
 
     for {
         select {
@@ -45,14 +45,11 @@ func main() {
                 }
             }
 
-        default:
-            msgs, err = conn.Receive()
-            if err != nil {
+        case msg := <-evschan:
+            if msg.Error != nil {
                 fmt.Println("error on receive: ", err)
-            }
-
-            for i := range msgs {
-                ParseProcEvent(msgs[i].Data)
+            } else {
+                HandleProcEvent(listener, msg.Data)
             }
         }
     }

@@ -25,67 +25,124 @@ type eventMsgHeader struct {
     Timestamp uint64
 }
 
-type procEventAck struct {
-    Error uint32
+type Listener interface {
+    onAck(event EventAck)
+    onFork(event EventFork)
+    onExec(event EventExec)
+    onUid(event EventUid)
+    onGid(event EventGid)
+    onSid(event EventSid)
+    onPtrace(event EventPtrace)
+    onComm(event EventComm)
+    onCoreDump(event EventCoreDump)
+    onExit(event EventExit)
 }
 
-type procEventFork struct {
+type listenerCaller interface {
+    callListener(listener *Listener)
+}
+
+type EventAck struct {
+    No uint32
+}
+
+func (e EventAck) callListener(listener *Listener) {
+    (*listener).onAck(e)
+}
+
+type EventFork struct {
     ParentTid uint32
     ParentPid uint32
     ChildPid  uint32
-    ChildTgid uint32
+    ChildTid  uint32
 }
 
-type procEventExec struct {
-    ProcessPid  uint32
-    ProcessTgid uint32
+func (e EventFork) callListener(listener *Listener) {
+    (*listener).onFork(e)
 }
 
-type procEventUid struct {
-    ProcessPid  uint32
-    ProcessTgid uint32
-    Ruid 		uint32
-    Euid 		uint32
+type EventExec struct {
+    Tid  uint32
+    Pid  uint32
 }
 
-type procEventGid struct {
-    ProcessPid  uint32
-    ProcessTgid uint32
-    Rgid 		uint32
-    Egid 		uint32
+func (e EventExec) callListener(listener *Listener) {
+    (*listener).onExec(e)
 }
 
-type procEventSid struct {
-    ProcessPid  uint32
-    ProcessTgid uint32
+type EventUid struct {
+    Tid  uint32
+    Pid  uint32
+    Ruid uint32
+    Euid uint32
 }
 
-type procEventPtrace struct {
-    ProcessPid  uint32
-    ProcessTgid uint32
-    TracerPid   uint32
-    TracerTgid  uint32
+func (e EventUid) callListener(listener *Listener) {
+    (*listener).onUid(e)
 }
 
-type procEventComm struct {
-    ProcessPid  uint32
-    ProcessTgid uint32
-    Comm		[16]byte
+type EventGid struct {
+    Tid  uint32
+    Pid  uint32
+    Rgid uint32
+    Egid uint32
 }
 
-type procEventCoreDump struct {
-    ProcessPid  uint32
-    ProcessTgid uint32
+func (e EventGid) callListener(listener *Listener) {
+    (*listener).onGid(e)
 }
 
-type procEventExit struct {
-    ProcessPid  uint32
-    ProcessTgid uint32
-    ExitCode    uint32
-    ExitSignal  uint32
+type EventSid struct {
+    Tid uint32
+    Pid uint32
 }
 
-func ParseProcEvent(data []byte) {
+func (e EventSid) callListener(listener *Listener) {
+    (*listener).onSid(e)
+}
+
+type EventPtrace struct {
+    TargetTid uint32
+    TargetPid uint32
+    TracerTid uint32
+    TracerPid uint32
+}
+
+func (e EventPtrace) callListener(listener *Listener) {
+    (*listener).onPtrace(e)
+}
+
+type EventComm struct {
+    Tid  uint32
+    Pid  uint32
+    Comm [16]byte
+}
+
+func (e EventComm) callListener(listener *Listener) {
+    (*listener).onComm(e)
+}
+
+type EventCoreDump struct {
+    Tid uint32
+    Pid uint32
+}
+
+func (e EventCoreDump) callListener(listener *Listener) {
+    (*listener).onCoreDump(e)
+}
+
+type EventExit struct {
+    Tid    uint32
+    Pid    uint32
+    Code   uint32
+    Signal uint32
+}
+
+func (e EventExit) callListener(listener *Listener) {
+    (*listener).onExit(e)
+}
+
+func HandleProcEvent(listener Listener, data []byte) {
     buf := bytes.NewBuffer(data)
     msg := &cnMsg{}
     hdr := &eventMsgHeader{}
@@ -93,29 +150,29 @@ func ParseProcEvent(data []byte) {
     binary.Read(buf, binary.LittleEndian, msg)
     binary.Read(buf, binary.LittleEndian, hdr)
 
-    var event interface{}
+    var event listenerCaller
 
     switch hdr.What {
     case PROC_EVENT_NONE:
-        event = &procEventAck{}
+        event = &EventAck{}
     case PROC_EVENT_FORK:
-        event = &procEventFork{}
+        event = &EventFork{}
     case PROC_EVENT_EXEC:
-        event = &procEventExec{}
+        event = &EventExec{}
     case PROC_EVENT_UID:
-        event = &procEventUid{}
+        event = &EventUid{}
     case PROC_EVENT_GID:
-        event = &procEventGid{}
+        event = &EventGid{}
     case PROC_EVENT_SID:
-        event = &procEventSid{}
+        event = &EventSid{}
     case PROC_EVENT_PTRACE:
-        event = &procEventPtrace{}
+        event = &EventPtrace{}
     case PROC_EVENT_COMM:
-        event = &procEventComm{}
+        event = &EventComm{}
     case PROC_EVENT_COREDUMP:
-        event = &procEventCoreDump{}
+        event = &EventCoreDump{}
     case PROC_EVENT_EXIT:
-        event = &procEventExit{}
+        event = &EventExit{}
     default:
         fmt.Printf("Unknown event type: 0x%08x\n", hdr.What)
         return
@@ -123,4 +180,5 @@ func ParseProcEvent(data []byte) {
 
     binary.Read(buf, binary.LittleEndian, event)
     fmt.Printf("Received %T at %d\n", event, hdr.Timestamp)
+    event.callListener(&listener)
 }
