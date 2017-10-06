@@ -1,109 +1,109 @@
 package main
 
 import (
-	"syscall"
-	"os"
-	"fmt"
-	"encoding/binary"
-	"bytes"
+    "bytes"
+    "encoding/binary"
+    "fmt"
+    "os"
+    "syscall"
 )
 
 const (
-	CN_IDX_PROC = 0x1
-	CN_VAL_PROC = 0x1
+    CN_IDX_PROC = 0x1
+    CN_VAL_PROC = 0x1
 )
 
 type cbId struct {
-	Idx uint32
-	Val uint32
+    Idx uint32
+    Val uint32
 }
 
 type cnMsg struct {
-	Id    cbId
-	Seq   uint32
-	Ack   uint32
-	Len   uint16
-	Flags uint16
+    Id    cbId
+    Seq   uint32
+    Ack   uint32
+    Len   uint16
+    Flags uint16
 }
 
 type CnConnection struct {
-	fd int
-	sa syscall.SockaddrNetlink
+    fd int
+    sa syscall.SockaddrNetlink
 }
 
 func (cn *CnConnection) Connect() (err error) {
-	cn.sa = syscall.SockaddrNetlink{
-		Family: syscall.AF_NETLINK,
-		Groups: CN_IDX_PROC,
-		Pid: uint32(os.Getegid()),
-	}
+    cn.sa = syscall.SockaddrNetlink{
+        Family: syscall.AF_NETLINK,
+        Groups: CN_IDX_PROC,
+        Pid: uint32(os.Getegid()),
+    }
 
-	cn.fd, err = syscall.Socket(
-		syscall.AF_NETLINK,
-		syscall.SOCK_DGRAM,
-		syscall.NETLINK_CONNECTOR,
-	)
+    cn.fd, err = syscall.Socket(
+        syscall.AF_NETLINK,
+        syscall.SOCK_DGRAM,
+        syscall.NETLINK_CONNECTOR,
+    )
 
-	if err != nil {
-		err = os.NewSyscallError("socket", err)
-		return fmt.Errorf("cannot create netlink socket: %s", err)
-	}
+    if err != nil {
+        err = os.NewSyscallError("socket", err)
+        return fmt.Errorf("cannot create netlink socket: %s", err)
+    }
 
-	err = syscall.Bind(cn.fd, &cn.sa)
-	if err != nil {
-		err = os.NewSyscallError("bind", err)
-		syscall.Close(cn.fd)
-		return fmt.Errorf("cannot bind netlink socket: %s", err)
-	}
+    err = syscall.Bind(cn.fd, &cn.sa)
+    if err != nil {
+        err = os.NewSyscallError("bind", err)
+        syscall.Close(cn.fd)
+        return fmt.Errorf("cannot bind netlink socket: %s", err)
+    }
 
-	return cn.setListeningOp(1)
+    return cn.setListeningOp(1)
 }
 
 func (cn *CnConnection) Close() {
-	if cn.fd != -1 {
-		fmt.Println("stop listening")
-		cn.setListeningOp(0)
-		fmt.Println("close connection")
-		syscall.Close(cn.fd)
-	}
+    if cn.fd != -1 {
+        fmt.Println("stop listening")
+        cn.setListeningOp(0)
+        fmt.Println("close connection")
+        syscall.Close(cn.fd)
+    }
 }
 
 func (cn *CnConnection) setListeningOp(op uint32) error {
-	hdr := &syscall.NlMsghdr{}
-	msg := &cnMsg{}
+    hdr := &syscall.NlMsghdr{}
+    msg := &cnMsg{}
 
-	size := binary.Size(msg) + binary.Size(op)
+    size := binary.Size(msg) + binary.Size(op)
 
-	hdr.Len = syscall.NLMSG_HDRLEN + uint32(size)
-	hdr.Type = uint16(syscall.NLMSG_DONE)
-	hdr.Flags = 0
-	hdr.Seq = uint32(0)
-	hdr.Pid = uint32(os.Getpid())
+    hdr.Len = syscall.NLMSG_HDRLEN + uint32(size)
+    hdr.Type = uint16(syscall.NLMSG_DONE)
+    hdr.Flags = 0
+    hdr.Seq = uint32(0)
+    hdr.Pid = uint32(os.Getpid())
 
-	msg.Id.Idx = CN_IDX_PROC
-	msg.Id.Val = CN_VAL_PROC
-	msg.Len = uint16(binary.Size(op))
+    msg.Id.Idx = CN_IDX_PROC
+    msg.Id.Val = CN_VAL_PROC
+    msg.Len = uint16(binary.Size(op))
 
-	buf := bytes.NewBuffer(make([]byte, 0, hdr.Len))
-	binary.Write(buf, binary.LittleEndian, hdr)
-	binary.Write(buf, binary.LittleEndian, msg)
-	binary.Write(buf, binary.LittleEndian, op)
+    buf := bytes.NewBuffer(make([]byte, 0, hdr.Len))
+    binary.Write(buf, binary.LittleEndian, hdr)
+    binary.Write(buf, binary.LittleEndian, msg)
+    binary.Write(buf, binary.LittleEndian, op)
 
-	return syscall.Sendto(cn.fd, buf.Bytes(), 0, &cn.sa)
+    return syscall.Sendto(cn.fd, buf.Bytes(), 0, &cn.sa)
 }
 
 func (cn *CnConnection) Receive() ([]syscall.NetlinkMessage, error) {
-	rb := make([]byte, syscall.Getpagesize())
-	fmt.Println("call recvfrom")
+    rb := make([]byte, syscall.Getpagesize())
+    fmt.Println("call recvfrom")
 
-	msglen, _, err := syscall.Recvfrom(cn.fd, rb, 0)
-	if err != nil {
-		return nil, err
-	}
+    msglen, _, err := syscall.Recvfrom(cn.fd, rb, 0)
+    if err != nil {
+        return nil, err
+    }
 
-	if msglen < syscall.NLMSG_HDRLEN {
-		return nil, fmt.Errorf("got short response from netlink")
-	}
+    if msglen < syscall.NLMSG_HDRLEN {
+        return nil, fmt.Errorf("got short response from netlink")
+    }
 
-	return syscall.ParseNetlinkMessage(rb[:msglen])
+    return syscall.ParseNetlinkMessage(rb[:msglen])
 }
