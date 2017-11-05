@@ -47,6 +47,7 @@ type ProcListener struct {
 	EventCoreDump chan *EventCoreDump
 	EventExit     chan *EventExit
 	Error         chan error
+	Stop          bool
 }
 
 func (listener *ProcListener) Connect() (err error) {
@@ -95,6 +96,7 @@ func (listener *ProcListener) Connect() (err error) {
 }
 
 func (listener *ProcListener) Close() {
+	listener.Stop = true
 	if listener.fd == -1 {
 		return
 	}
@@ -134,7 +136,7 @@ func (listener *ProcListener) ListenEvents() {
 	rb := make([]byte, syscall.Getpagesize())
 	fmt.Println("call recvfrom")
 
-	for {
+	for !listener.Stop {
 		msglen, _, err := syscall.Recvfrom(listener.fd, rb, 0)
 		if err != nil {
 			listener.Error <- err
