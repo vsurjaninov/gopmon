@@ -16,6 +16,7 @@ type testListener struct {
 	acks     []EventAck
 	forks    []EventFork
 	execs    []EventExec
+	exits    []EventExit
 }
 
 func newTestListener(t *testing.T) *testListener {
@@ -48,7 +49,10 @@ func newTestListener(t *testing.T) *testListener {
 			case event := <-tl.listener.EventExec:
 				fmt.Printf("%T pid=%d tid=%d\n", event, event.Pid, event.Tid)
 				tl.execs = append(tl.execs, *event)
-
+			case event := <-tl.listener.EventExit:
+				fmt.Printf("%T pid=%d tid=%d code=%d signal=%d\n",
+					event, event.Pid, event.Tid, event.Code, event.Signal)
+				tl.exits = append(tl.exits, *event)
 			}
 		}
 	}()
@@ -101,26 +105,76 @@ func TestFork(t *testing.T) {
 	t.Errorf("Not found expected fork event")
 }
 
-func TestExec(t *testing.T) {
+func TestExecAndExitSuccess(t *testing.T) {
 	tl := newTestListener(t)
 	cmd := exec.Command("sleep", "0.1")
-	err := cmd.Run()
-	if err != nil {
+	if err := cmd.Run(); err != nil {
 		t.Fatal("Error on exec command:", err)
 	}
 
-	pid := cmd.Process.Pid
+	pid := uint32(cmd.Process.Pid)
 	tl.close()
 
 	if len(tl.execs) < 1 {
 		t.Errorf("Expected at least 1 exec event")
 	}
 
+	execFound := false
 	for _, event := range tl.execs {
-		if event.Pid == uint32(pid) {
+		if event.Pid == pid {
+			execFound = true
+		}
+	}
+
+	if !execFound {
+		t.Errorf("Not found expected fork event")
+	}
+
+	for _, event := range tl.exits {
+		if event.Pid == pid && event.Code == 0 {
 			return
 		}
 	}
 
-	t.Errorf("Not found expected fork event")
+	t.Errorf("Not found expected exit event")
+}
+
+func TestExecAndExitBySignal(t *testing.T) {
+	tl := newTestListener(t)
+
+	cmd := exec.Command("sleep", "100")
+	if err := cmd.Start(); err != nil {
+		t.Fatal("Error on exec command:", err)
+	}
+
+	pid := uint32(cmd.Process.Pid)
+	sig := syscall.SIGTERM
+
+	syscall.Kill(cmd.Process.Pid, sig)
+	cmd.Wait()
+
+	tl.close()
+
+	if len(tl.execs) < 1 {
+		t.Errorf("Expected at least 1 exec event")
+	}
+
+	execFound := false
+	for _, event := range tl.execs {
+		if event.Pid == pid {
+			execFound = true
+		}
+	}
+
+	if !execFound {
+		t.Errorf("Not found expected fork event")
+	}
+
+	for _, event := range tl.exits {
+		if event.Pid == pid && event.Code == uint32(sig) {
+			return
+		}
+	}
+
+	t.Errorf("Not found expected exit event")
 }
