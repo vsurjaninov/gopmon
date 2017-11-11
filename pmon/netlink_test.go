@@ -3,6 +3,7 @@ package pmon
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"syscall"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ type testListener struct {
 	done     chan bool
 	acks     []EventAck
 	forks    []EventFork
+	execs    []EventExec
 }
 
 func newTestListener(t *testing.T) *testListener {
@@ -43,6 +45,10 @@ func newTestListener(t *testing.T) *testListener {
 				fmt.Printf("%T ppid=%d ptid=%d cpid=%d ctid=%d\n",
 					event, event.ParentPid, event.ParentTid, event.ChildPid, event.ChildTid)
 				tl.forks = append(tl.forks, *event)
+			case event := <-tl.listener.EventExec:
+				fmt.Printf("%T pid=%d tid=%d\n", event, event.Pid, event.Tid)
+				tl.execs = append(tl.execs, *event)
+
 			}
 		}
 	}()
@@ -88,6 +94,30 @@ func TestFork(t *testing.T) {
 
 	for _, event := range tl.forks {
 		if event.ParentPid == uint32(parentPid) && event.ChildPid == uint32(childPid) {
+			return
+		}
+	}
+
+	t.Errorf("Not found expected fork event")
+}
+
+func TestExec(t *testing.T) {
+	tl := newTestListener(t)
+	cmd := exec.Command("sleep", "0.1")
+	err := cmd.Run()
+	if err != nil {
+		t.Fatal("Error on exec command:", err)
+	}
+
+	pid := cmd.Process.Pid
+	tl.close()
+
+	if len(tl.execs) < 1 {
+		t.Errorf("Expected at least 1 exec event")
+	}
+
+	for _, event := range tl.execs {
+		if event.Pid == uint32(pid) {
 			return
 		}
 	}
