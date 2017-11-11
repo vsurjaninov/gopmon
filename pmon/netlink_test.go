@@ -2,6 +2,8 @@ package pmon
 
 import (
 	"fmt"
+	"os"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -11,6 +13,7 @@ type testListener struct {
 	listener *ProcListener
 	done     chan bool
 	acks     []EventAck
+	forks    []EventFork
 }
 
 func newTestListener(t *testing.T) *testListener {
@@ -33,9 +36,13 @@ func newTestListener(t *testing.T) *testListener {
 				return
 			case <-tl.listener.Error:
 				t.Fatal("Error on recv")
-			case ev := <-tl.listener.EventAck:
-				fmt.Printf("%T no=%d\n", ev, ev.No)
-				tl.acks = append(tl.acks, *ev)
+			case event := <-tl.listener.EventAck:
+				fmt.Printf("%T no=%d\n", event, event.No)
+				tl.acks = append(tl.acks, *event)
+			case event := <-tl.listener.EventFork:
+				fmt.Printf("%T ppid=%d ptid=%d cpid=%d ctid=%d\n",
+					event, event.ParentPid, event.ParentTid, event.ChildPid, event.ChildTid)
+				tl.forks = append(tl.forks, *event)
 			}
 		}
 	}()
@@ -58,4 +65,32 @@ func TestAck(t *testing.T) {
 	if len(tl.acks) != 1 && tl.acks[0].No != 0 {
 		t.Errorf("Expected 1 ack event")
 	}
+}
+
+func TestFork(t *testing.T) {
+	parentPid := os.Getpid()
+	tl := newTestListener(t)
+
+	childPid, _, err := syscall.Syscall(syscall.SYS_FORK, 0, 0, 0)
+	if err != 0 {
+		t.Fatal("Error on fork syscall")
+	}
+
+	if childPid == 0 {
+		time.Sleep(100 * time.Millisecond)
+		os.Exit(0)
+	}
+
+	tl.close()
+	if len(tl.forks) < 1 {
+		t.Errorf("Expected at least 1 fork event")
+	}
+
+	for _, event := range tl.forks {
+		if event.ParentPid == uint32(parentPid) && event.ChildPid == uint32(childPid) {
+			return
+		}
+	}
+
+	t.Errorf("Not found expected fork event")
 }
