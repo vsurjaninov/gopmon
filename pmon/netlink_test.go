@@ -16,6 +16,8 @@ type testListener struct {
 	acks     []EventAck
 	forks    []EventFork
 	execs    []EventExec
+	uids     []EventUid
+	gids     []EventGid
 	exits    []EventExit
 }
 
@@ -49,6 +51,14 @@ func newTestListener(t *testing.T) *testListener {
 			case event := <-tl.listener.EventExec:
 				fmt.Printf("%T pid=%d tid=%d\n", event, event.Pid, event.Tid)
 				tl.execs = append(tl.execs, *event)
+            case event := <- tl.listener.EventUid:
+                fmt.Printf("%T pid=%d tid=%d ruid=%d euid=%d\n",
+                    event, event.Pid, event.Tid, event.Ruid, event.Euid)
+                tl.uids = append(tl.uids, *event)
+            case event := <- tl.listener.EventGid:
+                fmt.Printf("%T pid=%d tid=%d ruid=%d euid=%d\n",
+                    event, event.Pid, event.Tid, event.Rgid, event.Egid)
+                tl.gids = append(tl.gids, *event)
 			case event := <-tl.listener.EventExit:
 				fmt.Printf("%T pid=%d tid=%d code=%d signal=%d\n",
 					event, event.Pid, event.Tid, event.Code, event.Signal)
@@ -77,7 +87,7 @@ func TestAck(t *testing.T) {
 	}
 }
 
-func TestFork(t *testing.T) {
+func TestForkAndUidAndGid(t *testing.T) {
 	parentPid := os.Getpid()
 	tl := newTestListener(t)
 
@@ -86,7 +96,22 @@ func TestFork(t *testing.T) {
 		t.Fatal("Error on fork syscall")
 	}
 
+	childGid := 65534
+    childUid := 1000
+
 	if childPid == 0 {
+        _, _, err = syscall.Syscall(syscall.SYS_SETREGID, uintptr(childGid), uintptr(childGid), 0)
+        if err != 0 {
+            fmt.Println("SYS_SETREGID error:", err)
+            os.Exit(1)
+        }
+
+        _, _, err = syscall.Syscall(syscall.SYS_SETREUID, uintptr(childUid), uintptr(childUid), 0)
+        if err != 0 {
+            fmt.Println("SYS_SETREUID error:", err)
+            os.Exit(1)
+        }
+
 		time.Sleep(100 * time.Millisecond)
 		os.Exit(0)
 	}
@@ -96,13 +121,38 @@ func TestFork(t *testing.T) {
 		t.Errorf("Expected at least 1 fork event")
 	}
 
+	forkFound := false
 	for _, event := range tl.forks {
 		if event.ParentPid == uint32(parentPid) && event.ChildPid == uint32(childPid) {
-			return
+            forkFound = true
 		}
 	}
 
-	t.Errorf("Not found expected fork event")
+	if !forkFound {
+        t.Errorf("Not found expected fork event")
+    }
+
+    gidFound := false
+    for _, event := range tl.gids {
+        if event.Rgid == uint32(childGid) && event.Egid == uint32(childGid) {
+            gidFound = true
+        }
+    }
+
+    if !gidFound {
+        t.Errorf("Not found expected gid event")
+    }
+
+    uidFound := false
+    for _, event := range tl.uids {
+        if event.Ruid == uint32(childUid) && event.Euid == uint32(childUid) {
+            uidFound = true
+        }
+    }
+
+    if !uidFound {
+        t.Errorf("Not found expected uid event")
+    }
 }
 
 func TestExecAndExitSuccess(t *testing.T) {
