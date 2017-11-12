@@ -10,7 +10,6 @@ import (
 )
 
 type testListener struct {
-	t        *testing.T
 	listener *ProcListener
 	done     chan bool
 	acks     []EventAck
@@ -24,7 +23,6 @@ type testListener struct {
 
 func newTestListener(t *testing.T) *testListener {
 	tl := &testListener{
-		t:        t,
 		listener: &ProcListener{},
 		done:     make(chan bool, 1),
 	}
@@ -92,7 +90,7 @@ func TestAck(t *testing.T) {
 	}
 }
 
-func TestForkAndUidAndGid(t *testing.T) {
+func TestForkAndUidAndGidAndSid(t *testing.T) {
 	parentPid := os.Getpid()
 	tl := newTestListener(t)
 
@@ -128,9 +126,6 @@ func TestForkAndUidAndGid(t *testing.T) {
 	}
 
 	tl.close()
-	if len(tl.forks) < 1 {
-		t.Errorf("Expected at least 1 fork event")
-	}
 
 	forkFound := false
 	for _, event := range tl.forks {
@@ -187,10 +182,6 @@ func TestExecAndExitSuccess(t *testing.T) {
 	pid := uint32(cmd.Process.Pid)
 	tl.close()
 
-	if len(tl.execs) < 1 {
-		t.Errorf("Expected at least 1 exec event")
-	}
-
 	execFound := false
 	for _, event := range tl.execs {
 		if event.Pid == pid {
@@ -202,18 +193,20 @@ func TestExecAndExitSuccess(t *testing.T) {
 		t.Errorf("Not found expected fork event")
 	}
 
+	exitFound := false
 	for _, event := range tl.exits {
 		if event.Pid == pid && event.Code == 0 {
-			return
+			exitFound = true
 		}
 	}
 
-	t.Errorf("Not found expected exit event")
+	if !exitFound {
+		t.Errorf("Not found expected exit event")
+	}
 }
 
 func TestExecAndExitBySignal(t *testing.T) {
 	tl := newTestListener(t)
-
 	cmd := exec.Command("sleep", "100")
 	if err := cmd.Start(); err != nil {
 		t.Fatal("Error on exec command:", err)
@@ -227,10 +220,6 @@ func TestExecAndExitBySignal(t *testing.T) {
 
 	tl.close()
 
-	if len(tl.execs) < 1 {
-		t.Errorf("Expected at least 1 exec event")
-	}
-
 	execFound := false
 	for _, event := range tl.execs {
 		if event.Pid == pid {
@@ -242,11 +231,14 @@ func TestExecAndExitBySignal(t *testing.T) {
 		t.Errorf("Not found expected fork event")
 	}
 
+	exitFound := false
 	for _, event := range tl.exits {
 		if event.Pid == pid && event.Code == uint32(sig) {
-			return
+			exitFound = true
 		}
 	}
 
-	t.Errorf("Not found expected exit event")
+	if !exitFound {
+		t.Errorf("Not found expected exit event")
+	}
 }
