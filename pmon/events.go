@@ -1,5 +1,7 @@
 package pmon
 
+import "fmt"
+
 const (
 	PROC_EVENT_NONE     = 0x00000000
 	PROC_EVENT_FORK     = 0x00000001
@@ -17,6 +19,10 @@ type EventAck struct {
 	No uint32
 }
 
+func (e EventAck) String() string {
+	return fmt.Sprintf("%T(no=%d)", e, e.No)
+}
+
 type EventFork struct {
 	ParentTid uint32
 	ParentPid uint32
@@ -24,9 +30,18 @@ type EventFork struct {
 	ChildTid  uint32
 }
 
+func (e EventFork) String() string {
+	return fmt.Sprintf("%T(ppid=%d ptid=%d cpid=%d ctid=%d)",
+		e, e.ParentPid, e.ParentTid, e.ChildPid, e.ChildTid)
+}
+
 type EventExec struct {
 	Tid uint32
 	Pid uint32
+}
+
+func (e EventExec) String() string {
+	return fmt.Sprintf("%T(pid=%d tid=%d)", e, e.Pid, e.Tid)
 }
 
 type EventUid struct {
@@ -36,6 +51,11 @@ type EventUid struct {
 	Euid uint32
 }
 
+func (e EventUid) String() string {
+	return fmt.Sprintf("%T(pid=%d tid=%d ruid=%d euid=%d)",
+		e, e.Pid, e.Tid, e.Ruid, e.Euid)
+}
+
 type EventGid struct {
 	Tid  uint32
 	Pid  uint32
@@ -43,9 +63,18 @@ type EventGid struct {
 	Egid uint32
 }
 
+func (e EventGid) String() string {
+	return fmt.Sprintf("%T(pid=%d tid=%d ruid=%d euid=%d)",
+		e, e.Pid, e.Tid, e.Rgid, e.Egid)
+}
+
 type EventSid struct {
 	Tid uint32
 	Pid uint32
+}
+
+func (e EventSid) String() string {
+	return fmt.Sprintf("%T(pid=%d tid=%d)", e, e.Pid, e.Tid)
 }
 
 type EventPtrace struct {
@@ -55,10 +84,20 @@ type EventPtrace struct {
 	TracerPid uint32
 }
 
+func (e EventPtrace) String() string {
+	return fmt.Sprintf("%T(pid=%d tid=%d tpid=%d ttid=%d)",
+		e, e.TargetPid, e.TargetTid, e.TracerPid, e.TracerTid)
+}
+
 type EventComm struct {
 	Tid  uint32
 	Pid  uint32
 	Comm [16]byte
+}
+
+func (e EventComm) String() string {
+	return fmt.Sprintf("%T(pid=%d tid=%d)",
+		e, e.Pid, e.Tid)
 }
 
 type EventCoreDump struct {
@@ -66,9 +105,18 @@ type EventCoreDump struct {
 	Pid uint32
 }
 
+func (e EventCoreDump) String() string {
+	return fmt.Sprintf("%T(pid=%d tid=%d)", e, e.Pid, e.Tid)
+}
+
 type EventExit struct {
 	Tid    uint32
 	Pid    uint32
 	Code   uint32
 	Signal uint32
+}
+
+func (e EventExit) String() string {
+	return fmt.Sprintf("%T(pid=%d tid=%d code=%d signal=%d)",
+		e, e.Pid, e.Tid, e.Code, e.Signal)
 }

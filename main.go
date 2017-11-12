@@ -44,33 +44,25 @@ func main() {
 			fmt.Println("error on receive: ", err)
 			return
 		case event := <-listener.EventAck:
-			fmt.Printf("%T no=%d\n", event, event.No)
+			fmt.Println(event)
 		case event := <-listener.EventFork:
-			fmt.Printf("%T ppid=%d ptid=%d cpid=%d ctid=%d\n",
-				event, event.ParentPid, event.ParentTid, event.ChildPid, event.ChildTid)
+			fmt.Println(event)
 		case event := <-listener.EventExec:
-			fmt.Printf("%T pid=%d tid=%d\n", event, event.Pid, event.Tid)
+			fmt.Println(event)
 		case event := <-listener.EventUid:
-			fmt.Printf("%T pid=%d tid=%d ruid=%d euid=%d\n",
-				event, event.Pid, event.Tid, event.Ruid, event.Euid)
+			fmt.Println(event)
 		case event := <-listener.EventGid:
-			fmt.Printf("%T pid=%d tid=%d ruid=%d euid=%d\n",
-				event, event.Pid, event.Tid, event.Rgid, event.Egid)
+			fmt.Println(event)
 		case event := <-listener.EventSid:
-			fmt.Printf("%T pid=%d tid=%d\n",
-				event, event.Pid, event.Tid)
+			fmt.Println(event)
 		case event := <-listener.EventPtrace:
-			fmt.Printf("%T pid=%d tid=%d tpid=%d ttid=%d\n",
-				event, event.TargetPid, event.TargetTid, event.TracerPid, event.TracerTid)
+			fmt.Println(event)
 		case event := <-listener.EventComm:
-			fmt.Printf("%T pid=%d tid=%d\n",
-				event, event.Pid, event.Tid)
+			fmt.Println(event)
 		case event := <-listener.EventCoreDump:
-			fmt.Printf("%T pid=%d tid=%d\n",
-				event, event.Pid, event.Tid)
+			fmt.Println(event)
 		case event := <-listener.EventExit:
-			fmt.Printf("%T pid=%d tid=%d code=%d signal=%d\n",
-				event, event.Pid, event.Tid, event.Code, event.Signal)
+			fmt.Println(event)
 		}
 	}
 }

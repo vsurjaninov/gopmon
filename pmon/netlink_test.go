@@ -41,30 +41,25 @@ func newTestListener(t *testing.T) *testListener {
 			case <-tl.listener.Error:
 				t.Fatal("Error on recv")
 			case event := <-tl.listener.EventAck:
-				fmt.Printf("%T no=%d\n", event, event.No)
+				fmt.Println(event)
 				tl.acks = append(tl.acks, *event)
 			case event := <-tl.listener.EventFork:
-				fmt.Printf("%T ppid=%d ptid=%d cpid=%d ctid=%d\n",
-					event, event.ParentPid, event.ParentTid, event.ChildPid, event.ChildTid)
+				fmt.Println(event)
 				tl.forks = append(tl.forks, *event)
 			case event := <-tl.listener.EventExec:
-				fmt.Printf("%T pid=%d tid=%d\n", event, event.Pid, event.Tid)
+				fmt.Println(event)
 				tl.execs = append(tl.execs, *event)
 			case event := <-tl.listener.EventUid:
-				fmt.Printf("%T pid=%d tid=%d ruid=%d euid=%d\n",
-					event, event.Pid, event.Tid, event.Ruid, event.Euid)
+				fmt.Println(event)
 				tl.uids = append(tl.uids, *event)
 			case event := <-tl.listener.EventGid:
-				fmt.Printf("%T pid=%d tid=%d ruid=%d euid=%d\n",
-					event, event.Pid, event.Tid, event.Rgid, event.Egid)
+				fmt.Println(event)
 				tl.gids = append(tl.gids, *event)
 			case event := <-tl.listener.EventSid:
-				fmt.Printf("%T pid=%d tid=%d\n",
-					event, event.Pid, event.Tid)
+				fmt.Println(event)
 				tl.sids = append(tl.sids, *event)
 			case event := <-tl.listener.EventExit:
-				fmt.Printf("%T pid=%d tid=%d code=%d signal=%d\n",
-					event, event.Pid, event.Tid, event.Code, event.Signal)
+				fmt.Println(event)
 				tl.exits = append(tl.exits, *event)
 			}
 		}
