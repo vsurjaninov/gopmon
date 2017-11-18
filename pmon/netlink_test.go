@@ -10,15 +10,16 @@ import (
 )
 
 type testListener struct {
-	listener *ProcListener
-	done     chan bool
-	acks     []EventAck
-	forks    []EventFork
-	execs    []EventExec
-	uids     []EventUid
-	gids     []EventGid
-	sids     []EventSid
-	exits    []EventExit
+	listener  *ProcListener
+	done      chan bool
+	acks      []EventAck
+	forks     []EventFork
+	execs     []EventExec
+	uids      []EventUid
+	gids      []EventGid
+	sids      []EventSid
+	coredumps []EventCoreDump
+	exits     []EventExit
 }
 
 func newTestListener(t *testing.T) *testListener {
@@ -58,6 +59,9 @@ func newTestListener(t *testing.T) *testListener {
 			case event := <-tl.listener.EventSid:
 				fmt.Println(event)
 				tl.sids = append(tl.sids, *event)
+			case event := <-tl.listener.EventCoreDump:
+				fmt.Println(event)
+				tl.coredumps = append(tl.coredumps, *event)
 			case event := <-tl.listener.EventExit:
 				fmt.Println(event)
 				tl.exits = append(tl.exits, *event)
@@ -200,7 +204,7 @@ func TestExecAndExitSuccess(t *testing.T) {
 	}
 }
 
-func TestExecAndExitBySignal(t *testing.T) {
+func TestExecAndExitBySignalAndCoreDump(t *testing.T) {
 	tl := newTestListener(t)
 	cmd := exec.Command("sleep", "100")
 	if err := cmd.Start(); err != nil {
@@ -208,7 +212,7 @@ func TestExecAndExitBySignal(t *testing.T) {
 	}
 
 	pid := uint32(cmd.Process.Pid)
-	sig := syscall.SIGTERM
+	sig := syscall.SIGILL
 
 	syscall.Kill(cmd.Process.Pid, sig)
 	cmd.Wait()
@@ -228,7 +232,7 @@ func TestExecAndExitBySignal(t *testing.T) {
 
 	exitFound := false
 	for _, event := range tl.exits {
-		if event.Pid == pid && event.Code == uint32(sig) {
+		if event.Pid == pid && signalFromCode(event.Code) == sig {
 			exitFound = true
 		}
 	}
@@ -236,4 +240,32 @@ func TestExecAndExitBySignal(t *testing.T) {
 	if !exitFound {
 		t.Errorf("Not found expected exit event")
 	}
+
+	var rLimit syscall.Rlimit
+	err := syscall.Getrlimit(syscall.RLIMIT_CORE, &rLimit)
+	if err != nil {
+		t.Fatal("Error Getting Rlimit ", err)
+	}
+
+	if rLimit.Cur != 0 {
+		t.Fatal("Core dumps not enabled!")
+	}
+
+	coreDumpFound := false
+	for _, event := range tl.coredumps {
+		if event.Pid == pid {
+			coreDumpFound = true
+		}
+	}
+
+	if !coreDumpFound {
+		t.Errorf("Not found expected core dump event")
+	}
+}
+
+func signalFromCode(code uint32) syscall.Signal {
+	if code > 128 {
+		return syscall.Signal(code - 128)
+	}
+	return syscall.Signal(code)
 }
