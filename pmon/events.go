@@ -1,6 +1,9 @@
 package pmon
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 const (
 	PROC_EVENT_NONE     = 0x00000000
@@ -96,8 +99,12 @@ type EventComm struct {
 }
 
 func (e EventComm) String() string {
-	return fmt.Sprintf("%T(pid=%d tid=%d)",
-		e, e.Pid, e.Tid)
+	return fmt.Sprintf("%T(pid=%d tid=%d comm=\"%s\")",
+		e, e.Pid, e.Tid, e.getName())
+}
+
+func (e EventComm) getName() string {
+	return strings.TrimRight(string(e.Comm[:]), "\x00")
 }
 
 type EventCoreDump struct {

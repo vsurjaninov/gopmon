@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 )
 
 type testListener struct {
@@ -18,6 +19,7 @@ type testListener struct {
 	uids      []EventUid
 	gids      []EventGid
 	sids      []EventSid
+	comms     []EventComm
 	coredumps []EventCoreDump
 	exits     []EventExit
 }
@@ -59,6 +61,9 @@ func newTestListener(t *testing.T) *testListener {
 			case event := <-tl.listener.EventSid:
 				fmt.Println(event)
 				tl.sids = append(tl.sids, *event)
+			case event := <-tl.listener.EventComm:
+				fmt.Println(event)
+				tl.comms = append(tl.comms, *event)
 			case event := <-tl.listener.EventCoreDump:
 				fmt.Println(event)
 				tl.coredumps = append(tl.coredumps, *event)
@@ -89,7 +94,7 @@ func TestAck(t *testing.T) {
 	}
 }
 
-func TestForkAndUidAndGidAndSid(t *testing.T) {
+func TestForkAndUidAndGidAndSidAndComm(t *testing.T) {
 	parentPid := os.Getpid()
 	tl := newTestListener(t)
 
@@ -100,9 +105,19 @@ func TestForkAndUidAndGidAndSid(t *testing.T) {
 
 	childGid := 65534
 	childUid := 1000
+	childName := "0123456789ABCDEFG"
 
 	if childPid == 0 {
-		_, _, err := syscall.Syscall(syscall.SYS_SETSID, 0, 0, 0)
+		bytes := append([]byte(childName[:15]), 0)
+		ptr := unsafe.Pointer(&bytes[0])
+		_, _, err := syscall.RawSyscall6(syscall.SYS_PRCTL, syscall.PR_SET_NAME, uintptr(ptr), 0, 0, 0, 0)
+
+		if err != 0 {
+			fmt.Println("SYS_PRCTL PR_SET_NAME error:", err)
+			os.Exit(1)
+		}
+
+		_, _, err = syscall.Syscall(syscall.SYS_SETSID, 0, 0, 0)
 		if err != 0 {
 			fmt.Println("SYS_SETSID error:", err)
 			os.Exit(1)
@@ -168,6 +183,17 @@ func TestForkAndUidAndGidAndSid(t *testing.T) {
 
 	if !sidFound {
 		t.Errorf("Not found expected sid event")
+	}
+
+	commFound := false
+	for _, event := range tl.comms {
+		if event.Pid == uint32(childPid) && event.getName() == childName[:15] {
+			commFound = true
+		}
+	}
+
+	if !commFound {
+		t.Errorf("Not found expected comm event")
 	}
 }
 
