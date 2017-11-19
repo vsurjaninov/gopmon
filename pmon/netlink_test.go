@@ -135,11 +135,22 @@ func TestForkAndUidAndGidAndSidAndComm(t *testing.T) {
 			os.Exit(1)
 		}
 
-		time.Sleep(100 * time.Millisecond)
 		os.Exit(0)
 	}
 
 	tl.close()
+
+	time.Sleep(100 * time.Millisecond)
+	exitFound := false
+	for _, event := range tl.exits {
+		if event.Pid == uint32(childPid) && event.Code == 0 {
+			exitFound = true
+		}
+	}
+
+	if !exitFound {
+		t.Errorf("Not found expected exit event")
+	}
 
 	forkFound := false
 	for _, event := range tl.forks {
