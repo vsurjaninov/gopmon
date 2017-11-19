@@ -19,6 +19,7 @@ type testListener struct {
 	uids      []EventUid
 	gids      []EventGid
 	sids      []EventSid
+	ptraces   []EventPtrace
 	comms     []EventComm
 	coredumps []EventCoreDump
 	exits     []EventExit
@@ -61,6 +62,9 @@ func newTestListener(t *testing.T) *testListener {
 			case event := <-tl.listener.EventSid:
 				fmt.Println(event)
 				tl.sids = append(tl.sids, *event)
+			case event := <-tl.listener.EventPtrace:
+				fmt.Println(event)
+				tl.ptraces = append(tl.ptraces, *event)
 			case event := <-tl.listener.EventComm:
 				fmt.Println(event)
 				tl.comms = append(tl.comms, *event)
@@ -268,8 +272,20 @@ func TestExecAndExitBySignalAndCoreDump(t *testing.T) {
 		t.Fatal("Error on exec command:", err)
 	}
 
-	pid := uint32(cmd.Process.Pid)
+	time.Sleep(100 * time.Millisecond)
+	curPid := os.Getpid()
+	cmdPid := uint32(cmd.Process.Pid)
 	sig := syscall.SIGILL
+
+	err = syscall.PtraceAttach(int(cmdPid))
+	if err != nil {
+		t.Fatal("Error on ptrace attach:", err)
+	}
+
+	err = syscall.PtraceDetach(int(cmdPid))
+	if err != nil {
+		t.Fatal("Error on ptrace detach:", err)
+	}
 
 	syscall.Kill(cmd.Process.Pid, sig)
 	cmd.Wait()
@@ -278,7 +294,7 @@ func TestExecAndExitBySignalAndCoreDump(t *testing.T) {
 
 	execFound := false
 	for _, event := range tl.execs {
-		if event.Pid == pid {
+		if event.Pid == cmdPid {
 			execFound = true
 		}
 	}
@@ -289,7 +305,7 @@ func TestExecAndExitBySignalAndCoreDump(t *testing.T) {
 
 	exitFound := false
 	for _, event := range tl.exits {
-		if event.Pid == pid && signalFromCode(event.Code) == sig {
+		if event.Pid == cmdPid && signalFromCode(event.Code) == sig {
 			exitFound = true
 		}
 	}
@@ -304,13 +320,27 @@ func TestExecAndExitBySignalAndCoreDump(t *testing.T) {
 
 	coreDumpFound := false
 	for _, event := range tl.coredumps {
-		if event.Pid == pid {
+		if event.Pid == cmdPid {
 			coreDumpFound = true
 		}
 	}
 
 	if !coreDumpFound {
 		t.Errorf("Not found expected core dump event")
+	}
+
+	ptraceAttachFound := false
+	ptraceDetachFound := false
+	for _, event := range tl.ptraces {
+		if event.TracerPid == uint32(curPid) && event.TargetPid == cmdPid {
+			ptraceAttachFound = true
+		} else if event.TracerPid == 0 && event.TargetPid == cmdPid {
+			ptraceDetachFound = true
+		}
+	}
+
+	if !(ptraceAttachFound && ptraceDetachFound) {
+		t.Errorf("Not found expected ptrace events")
 	}
 }
 
