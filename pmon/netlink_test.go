@@ -242,6 +242,26 @@ func TestExecAndExitSuccess(t *testing.T) {
 }
 
 func TestExecAndExitBySignalAndCoreDump(t *testing.T) {
+	// change rlimit for enable core dumps
+	var rLimit syscall.Rlimit
+	err := syscall.Getrlimit(syscall.RLIMIT_CORE, &rLimit)
+	if err != nil {
+		t.Fatal("Error getting rlimit ", err)
+	}
+
+	err = syscall.Setrlimit(syscall.RLIMIT_CORE, &syscall.Rlimit{Cur: 999999, Max: 999999})
+	if err != nil {
+		t.Fatal("Error setting rlimit ", err)
+	}
+
+	defer func() {
+		// restore old rlimit value
+		err = syscall.Setrlimit(syscall.RLIMIT_CORE, &rLimit)
+		if err != nil {
+			t.Fatal("Error setting rlimit ", err)
+		}
+	}()
+
 	tl := newTestListener(t)
 	cmd := exec.Command("sleep", "100")
 	if err := cmd.Start(); err != nil {
@@ -276,12 +296,6 @@ func TestExecAndExitBySignalAndCoreDump(t *testing.T) {
 
 	if !exitFound {
 		t.Errorf("Not found expected exit event")
-	}
-
-	var rLimit syscall.Rlimit
-	err := syscall.Getrlimit(syscall.RLIMIT_CORE, &rLimit)
-	if err != nil {
-		t.Fatal("Error Getting Rlimit ", err)
 	}
 
 	if rLimit.Cur != 0 {
