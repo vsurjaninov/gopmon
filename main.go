@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/vsurjaninov/gopmon/pmon"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/vsurjaninov/gopmon/pmon"
 )
 
 func main() {
