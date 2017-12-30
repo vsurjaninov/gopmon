@@ -1,2 +1,5 @@
-core
 .idea
+.vscode
+
+core
+debug
