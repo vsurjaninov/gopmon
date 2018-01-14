@@ -16,9 +16,9 @@ type testListener struct {
 	acks      []EventAck
 	forks     []EventFork
 	execs     []EventExec
-	uids      []EventUid
-	gids      []EventGid
-	sids      []EventSid
+	uids      []EventUID
+	gids      []EventGID
+	sids      []EventSID
 	ptraces   []EventPtrace
 	comms     []EventComm
 	coredumps []EventCoreDump
@@ -53,13 +53,13 @@ func newTestListener(t *testing.T) *testListener {
 			case event := <-tl.listener.EventExec:
 				fmt.Println(event)
 				tl.execs = append(tl.execs, *event)
-			case event := <-tl.listener.EventUid:
+			case event := <-tl.listener.EventUID:
 				fmt.Println(event)
 				tl.uids = append(tl.uids, *event)
-			case event := <-tl.listener.EventGid:
+			case event := <-tl.listener.EventGID:
 				fmt.Println(event)
 				tl.gids = append(tl.gids, *event)
-			case event := <-tl.listener.EventSid:
+			case event := <-tl.listener.EventSID:
 				fmt.Println(event)
 				tl.sids = append(tl.sids, *event)
 			case event := <-tl.listener.EventPtrace:
@@ -107,8 +107,8 @@ func TestForkAndUidAndGidAndSidAndComm(t *testing.T) {
 		t.Fatal("Error on fork syscall")
 	}
 
-	childGid := 65534
-	childUid := 1000
+	childGID := 65534
+	childUID := 1000
 	childName := "0123456789ABCDEFG"
 
 	if childPid == 0 {
@@ -127,13 +127,13 @@ func TestForkAndUidAndGidAndSidAndComm(t *testing.T) {
 			os.Exit(1)
 		}
 
-		_, _, err = syscall.Syscall(syscall.SYS_SETREGID, uintptr(childGid), uintptr(childGid), 0)
+		_, _, err = syscall.Syscall(syscall.SYS_SETREGID, uintptr(childGID), uintptr(childGID), 0)
 		if err != 0 {
 			fmt.Println("SYS_SETREGID error:", err)
 			os.Exit(1)
 		}
 
-		_, _, err = syscall.Syscall(syscall.SYS_SETREUID, uintptr(childUid), uintptr(childUid), 0)
+		_, _, err = syscall.Syscall(syscall.SYS_SETREUID, uintptr(childUID), uintptr(childUID), 0)
 		if err != 0 {
 			fmt.Println("SYS_SETREUID error:", err)
 			os.Exit(1)
@@ -169,7 +169,7 @@ func TestForkAndUidAndGidAndSidAndComm(t *testing.T) {
 
 	gidFound := false
 	for _, event := range tl.gids {
-		if event.Rgid == uint32(childGid) && event.Egid == uint32(childGid) {
+		if event.Rgid == uint32(childGID) && event.Egid == uint32(childGID) {
 			gidFound = true
 		}
 	}
@@ -180,7 +180,7 @@ func TestForkAndUidAndGidAndSidAndComm(t *testing.T) {
 
 	uidFound := false
 	for _, event := range tl.uids {
-		if event.Ruid == uint32(childUid) && event.Euid == uint32(childUid) {
+		if event.Ruid == uint32(childUID) && event.Euid == uint32(childUID) {
 			uidFound = true
 		}
 	}

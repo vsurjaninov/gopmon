@@ -6,16 +6,16 @@ import (
 )
 
 const (
-	PROC_EVENT_NONE     = 0x00000000
-	PROC_EVENT_FORK     = 0x00000001
-	PROC_EVENT_EXEC     = 0x00000002
-	PROC_EVENT_UID      = 0x00000004
-	PROC_EVENT_GID      = 0x00000040
-	PROC_EVENT_SID      = 0x00000080
-	PROC_EVENT_PTRACE   = 0x00000100
-	PROC_EVENT_COMM     = 0x00000200
-	PROC_EVENT_COREDUMP = 0x40000000
-	PROC_EVENT_EXIT     = 0x80000000
+	idEventNone     = 0x00000000
+	idEventFork     = 0x00000001
+	idEventExec     = 0x00000002
+	idEventUID      = 0x00000004
+	idEventGID      = 0x00000040
+	idEventSID      = 0x00000080
+	idEventPtrace   = 0x00000100
+	idEventComm     = 0x00000200
+	idEventCoreDump = 0x40000000
+	idEventExit     = 0x80000000
 )
 
 type EventAck struct {
@@ -47,36 +47,36 @@ func (e EventExec) String() string {
 	return fmt.Sprintf("%T(pid=%d tid=%d)", e, e.Pid, e.Tid)
 }
 
-type EventUid struct {
+type EventUID struct {
 	Tid  uint32
 	Pid  uint32
 	Ruid uint32
 	Euid uint32
 }
 
-func (e EventUid) String() string {
+func (e EventUID) String() string {
 	return fmt.Sprintf("%T(pid=%d tid=%d ruid=%d euid=%d)",
 		e, e.Pid, e.Tid, e.Ruid, e.Euid)
 }
 
-type EventGid struct {
+type EventGID struct {
 	Tid  uint32
 	Pid  uint32
 	Rgid uint32
 	Egid uint32
 }
 
-func (e EventGid) String() string {
+func (e EventGID) String() string {
 	return fmt.Sprintf("%T(pid=%d tid=%d ruid=%d euid=%d)",
 		e, e.Pid, e.Tid, e.Rgid, e.Egid)
 }
 
-type EventSid struct {
+type EventSID struct {
 	Tid uint32
 	Pid uint32
 }
 
-func (e EventSid) String() string {
+func (e EventSID) String() string {
 	return fmt.Sprintf("%T(pid=%d tid=%d)", e, e.Pid, e.Tid)
 }
 
