@@ -47,7 +47,6 @@ type ProcListener struct {
 	EventCoreDump chan *EventCoreDump
 	EventExit     chan *EventExit
 	Error         chan error
-	Stop          bool
 }
 
 func (listener *ProcListener) Connect() (err error) {
@@ -96,14 +95,8 @@ func (listener *ProcListener) Connect() (err error) {
 }
 
 func (listener *ProcListener) Close() {
-	listener.Stop = true
-	if listener.fd == -1 {
-		return
-	}
-
 	fmt.Println("stop listening")
 	listener.setListeningOp(0)
-
 	fmt.Println("close connection")
 	syscall.Close(listener.fd)
 }
@@ -134,25 +127,38 @@ func (listener *ProcListener) setListeningOp(op uint32) error {
 
 func (listener *ProcListener) ListenEvents() {
 	rb := make([]byte, syscall.Getpagesize())
-	fmt.Println("call recvfrom")
+	defer func(){
+		close(listener.EventAck)
+		close(listener.EventFork)
+		close(listener.EventExec)
+		close(listener.EventUID)
+		close(listener.EventGID)
+		close(listener.EventSID)
+		close(listener.EventPtrace)
+		close(listener.EventComm)
+		close(listener.EventCoreDump)
+		close(listener.EventExit)
+		close(listener.Error)
+	}()
 
-	for !listener.Stop {
+	for listener.fd != -1 {
+		fmt.Println("call recvfrom")
 		msglen, _, err := syscall.Recvfrom(listener.fd, rb, 0)
 		if err != nil {
 			listener.Error <- err
-			continue
+			return
 		}
 
 		if msglen < syscall.NLMSG_HDRLEN {
 			listener.Error <- fmt.Errorf("got short response from netlink")
-			continue
+			return
 		}
 
 		fmt.Println("parse netlink message")
 		nlMessages, err := syscall.ParseNetlinkMessage(rb[:msglen])
 		if err != nil {
 			listener.Error <- err
-			continue
+			return
 		}
 
 		fmt.Println("receive events")

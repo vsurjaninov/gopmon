@@ -12,7 +12,7 @@ import (
 
 type testListener struct {
 	listener  *ProcListener
-	done      chan bool
+	stop      chan bool
 	acks      []EventAck
 	forks     []EventFork
 	execs     []EventExec
@@ -28,7 +28,7 @@ type testListener struct {
 func newTestListener(t *testing.T) *testListener {
 	tl := &testListener{
 		listener: &ProcListener{},
-		done:     make(chan bool, 1),
+		stop:     make(chan bool, 1),
 	}
 
 	err := tl.listener.Connect()
@@ -40,7 +40,8 @@ func newTestListener(t *testing.T) *testListener {
 	go func() {
 		for {
 			select {
-			case <-tl.done:
+			case <-tl.stop:
+				tl.listener.Close()
 				return
 			case <-tl.listener.Error:
 				t.Fatal("Error on recv")
@@ -84,9 +85,7 @@ func newTestListener(t *testing.T) *testListener {
 func (tl *testListener) close() {
 	pause := 100 * time.Millisecond
 	time.Sleep(pause)
-	tl.done <- true
-	tl.listener.Close()
-	time.Sleep(pause)
+	tl.stop <- true
 }
 
 func TestAck(t *testing.T) {
